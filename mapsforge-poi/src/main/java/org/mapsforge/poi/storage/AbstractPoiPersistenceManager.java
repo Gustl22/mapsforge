@@ -21,6 +21,7 @@ import org.mapsforge.core.util.LatLongUtils;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Abstract implementation for the {@link PoiPersistenceManager} interface. This implementation
@@ -43,14 +44,14 @@ public abstract class AbstractPoiPersistenceManager implements PoiPersistenceMan
      */
     @Override
     public Collection<PointOfInterest> findNearPosition(LatLong point, int distance,
-                                                        PoiCategoryFilter filter, String pattern,
+                                                        PoiCategoryFilter filter, Map<String, String> patterns,
                                                         int limit) {
         double minLat = point.latitude - LatLongUtils.latitudeDistance(distance);
         double minLon = point.longitude - LatLongUtils.longitudeDistance(distance, point.latitude);
         double maxLat = point.latitude + LatLongUtils.latitudeDistance(distance);
         double maxLon = point.longitude + LatLongUtils.longitudeDistance(distance, point.latitude);
 
-        return findInRect(new BoundingBox(minLat, minLon, maxLat, maxLon), filter, pattern, limit);
+        return findInRect(new BoundingBox(minLat, minLon, maxLat, maxLon), filter, patterns, limit);
     }
 
     /**
@@ -72,15 +73,24 @@ public abstract class AbstractPoiPersistenceManager implements PoiPersistenceMan
     /**
      * Gets the SQL query that looks up POI entries.
      *
-     * @param filter  The filter object for determining all wanted categories (may be null).
-     * @param pattern the pattern to search in points of interest data (may be null).
+     * @param filter The filter object for determining all wanted categories (may be null).
+     * @param count  Count of patterns to search in points of interest data (may be 0).
      * @return The SQL query.
      */
-    protected static String getSQLSelectString(PoiCategoryFilter filter, String pattern) {
+    protected static String getSQLSelectString(PoiCategoryFilter filter, int count) {
         if (filter != null) {
-            return PoiCategoryRangeQueryGenerator.getSQLSelectString(filter, pattern);
+            return PoiCategoryRangeQueryGenerator.getSQLSelectString(filter, count);
         }
-        return DbConstants.FIND_IN_BOX_STATEMENT + (pattern != null ? DbConstants.FIND_BY_DATA_CLAUSE : "") + " LIMIT ?;";
+        StringBuilder query = new StringBuilder();
+        query.append(DbConstants.FIND_IN_BOX_CLAUSE_1);
+        if(count > 0){
+            query.append(DbConstants.JOIN_DATA_CLAUSE);
+        }
+        query.append(DbConstants.FIND_IN_BOX_CLAUSE_2);
+        for (int i = 0; i < count; i++) {
+            query.append(DbConstants.FIND_BY_DATA_CLAUSE);
+        }
+        return query.append(" LIMIT ?;").toString();
     }
 
     /**

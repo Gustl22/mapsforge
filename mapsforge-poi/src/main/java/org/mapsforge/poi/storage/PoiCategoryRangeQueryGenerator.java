@@ -31,14 +31,22 @@ public final class PoiCategoryRangeQueryGenerator {
     /**
      * Gets the SQL query that looks up POI entries.
      *
-     * @param filter  The filter object for determining all wanted categories.
-     * @param pattern the pattern to search in points of interest names (may be null).
+     * @param filter   The filter object for determining all wanted categories.
+     * @param count     Count of patterns to search in points of interest names (may be 0).
      * @return The SQL query.
      */
-    public static String getSQLSelectString(PoiCategoryFilter filter, String pattern) {
-        return DbConstants.FIND_IN_BOX_STATEMENT + getSQLWhereClauseString(filter)
-                + (pattern != null ? DbConstants.FIND_BY_DATA_CLAUSE : "")
-                + " LIMIT ?;";
+    public static String getSQLSelectString(PoiCategoryFilter filter, int count) {
+        StringBuilder query = new StringBuilder();
+        query.append(DbConstants.FIND_IN_BOX_CLAUSE_1
+                + DbConstants.JOIN_CATEGORY_CLAUSE);
+        if(count > 0){
+            query.append(DbConstants.JOIN_DATA_CLAUSE);
+        }
+        query.append(DbConstants.FIND_IN_BOX_CLAUSE_2).append(getSQLWhereClauseString(filter));
+        for (int i = 0; i < count; i++) {
+            query.append(DbConstants.FIND_BY_DATA_CLAUSE);
+        }
+        return (query.append(" LIMIT ?;").toString());
     }
 
     /**
@@ -65,7 +73,7 @@ public final class PoiCategoryRangeQueryGenerator {
             // Don't forget the super category itself in the search!
             categories.add(superCat);
 
-            sb.append("poi_data.category IN (");
+            sb.append("poi_cmap.category IN (");
             // for each category
             for (Iterator<PoiCategory> catIter = categories.iterator(); catIter.hasNext(); ) {
                 PoiCategory cat = catIter.next();
