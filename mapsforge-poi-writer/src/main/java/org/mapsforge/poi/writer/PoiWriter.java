@@ -477,19 +477,23 @@ public final class PoiWriter {
                 // Check if there is a POI category for this tag and add POI to DB
                 String tagStr = key + "=" + tag.getValue();
                 try {
-                    // Get category from tag
-                    PoiCategory pc = this.tagMappingResolver.getCategoryFromTag(tagStr);
+                    // Get categories from tag
+                    List<PoiCategory> pcs = this.tagMappingResolver.getCategoriesFromTag(tagStr);
 
-                    // Add entity if its category matches
-                    if (pc != null && this.categoryFilter.isAcceptedCategory(pc)) {
-                        // Collect the POI tags in a sorted manner
-                        if (tagMap == null) {
-                            tagMap = new TreeMap<>();
-                            for (Tag t : entity.getTags()) {
-                                tagMap.put(t.getKey().toLowerCase(Locale.ENGLISH), t.getValue());
+                    if (pcs != null) {
+                        for (PoiCategory pc : pcs) {
+                            // Add entity if its category matches
+                            if (pc != null && this.categoryFilter.isAcceptedCategory(pc)) {
+                                // Collect the POI tags in a sorted manner
+                                if (tagMap == null) {
+                                    tagMap = new TreeMap<>();
+                                    for (Tag t : entity.getTags()) {
+                                        tagMap.put(t.getKey().toLowerCase(Locale.ENGLISH), t.getValue());
+                                    }
+                                }
+                                poiCats.add(pc);
                             }
                         }
-                        poiCats.add(pc);
                     }
                 } catch (UnknownPoiCategoryException e) {
                     LOGGER.warning("The '" + tagStr + "' tag refers to a POI that does not exist: " + e.getMessage());
@@ -549,6 +553,9 @@ public final class PoiWriter {
                 coordinates[j] = new Coordinate(wayNode.longitude, wayNode.latitude);
             }
             Polygon polygon = GEOMETRY_FACTORY.createPolygon(GEOMETRY_FACTORY.createLinearRing(coordinates), null);
+            if (!polygon.isValid()) {
+                return;
+            }
 
             // Compute the centroid of the polygon
             Point center = polygon.getCentroid();

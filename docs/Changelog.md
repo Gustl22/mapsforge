@@ -2,6 +2,10 @@
 
 ## New since 0.8.0
 
+- MapFile supports FileChannel as input [#982](https://github.com/mapsforge/mapsforge/issues/982)
+- Map frame buffer improvements [#977](https://github.com/mapsforge/mapsforge/issues/977)
+- XmlPullParser different implementations [#974](https://github.com/mapsforge/mapsforge/issues/974)
+- Desktop: fix blurred map view [#978](https://github.com/mapsforge/mapsforge/issues/978)
 - POI: add non-closed ways [#947](https://github.com/mapsforge/mapsforge/issues/947)
 - POI: add geo tagging [#946](https://github.com/mapsforge/mapsforge/issues/946)
 - POI: add named entities option [#949](https://github.com/mapsforge/mapsforge/issues/949)
