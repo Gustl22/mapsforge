@@ -53,8 +53,11 @@ class GeoTagger {
     private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
     private PreparedStatement pStmtInsertWayNodes = null;
     private PreparedStatement pStmtDeletePoiData = null;
+    private PreparedStatement pStmtDeletePoiCategory = null;
     private PreparedStatement pStmtDeletePoiIndex = null;
     private PreparedStatement pStmtUpdateData = null;
+    private PreparedStatement pStmtUpdateTagValue = null;
+    private PreparedStatement pStmtUpdateTagKey = null;
     private PreparedStatement pStmtNodesInBox = null;
     private PreparedStatement pStmtTagsByID = null;
 
@@ -68,7 +71,10 @@ class GeoTagger {
             this.pStmtInsertWayNodes = writer.conn.prepareStatement(DbConstants.INSERT_WAYNODES_STATEMENT);
             this.pStmtDeletePoiData = writer.conn.prepareStatement(DbConstants.DELETE_DATA_STATEMENT);
             this.pStmtDeletePoiIndex = writer.conn.prepareStatement(DbConstants.DELETE_INDEX_STATEMENT);
-            this.pStmtUpdateData = writer.conn.prepareStatement(DbConstants.UPDATE_DATA_STATEMENT);
+            this.pStmtDeletePoiCategory = writer.conn.prepareStatement(DbConstants.DELETE_CATEGORYMAP_STATEMENT);
+            this.pStmtUpdateData = writer.conn.prepareStatement(DbConstants.INSERT_DATA_STATEMENT);
+            this.pStmtUpdateTagKey = writer.conn.prepareStatement(DbConstants.INSERT_TAGKEY_STATEMENT);
+            this.pStmtUpdateTagValue = writer.conn.prepareStatement(DbConstants.INSERT_TAGVALUE_STATEMENT);
             this.pStmtNodesInBox = writer.conn.prepareStatement(DbConstants.FIND_IN_BOX_STATEMENT);
             this.pStmtTagsByID = writer.conn.prepareStatement(DbConstants.FIND_DATA_BY_ID_STATEMENT);
         } catch (SQLException e) {
@@ -169,15 +175,27 @@ class GeoTagger {
     }
 
     void processBoundaries() {
+        int nPostalBounds = 0;
+        int nAdminBounds;
+
         for (Relation postalBoundary : postalBoundaries) {
+            if (nPostalBounds % 10 == 0)
+                System.out.printf("Progress: PostalBounds " + nPostalBounds + "/"
+                        + postalBoundaries.size() + " \r");
             processBoundary(postalBoundary, true);
+            nPostalBounds++;
         }
         commit();
 
         for (int i = administrativeBoundaries.size() - 1; i >= 0; i--) {
+            nAdminBounds = 0;
             List<Relation> administrativeBoundary = administrativeBoundaries.get(i);
             for (Relation relation : administrativeBoundary) {
+                if (nAdminBounds % 10 == 0)
+                    System.out.printf("Progress: AdminLevel " + i + ": " + nAdminBounds + "/"
+                            + administrativeBoundary.size() + " \r");
                 processBoundary(relation, false);
+                nAdminBounds++;
             }
             commit();
         }
@@ -277,9 +295,11 @@ class GeoTagger {
                         long id = entry.getKey().id;
                         this.pStmtDeletePoiData.setLong(1, id);
                         this.pStmtDeletePoiIndex.setLong(1, id);
+                        this.pStmtDeletePoiCategory.setLong(1, id);
 
                         this.pStmtDeletePoiData.addBatch();
                         this.pStmtDeletePoiIndex.addBatch();
+                        this.pStmtDeletePoiCategory.addBatch();
                     } catch (SQLException e) {
                         e.printStackTrace();
                     }
@@ -290,6 +310,8 @@ class GeoTagger {
             }
         }
         try {
+            pStmtDeletePoiCategory.executeBatch();
+            pStmtDeletePoiCategory.clearBatch();
             pStmtDeletePoiData.executeBatch();
             pStmtDeletePoiData.clearBatch();
             pStmtDeletePoiIndex.executeBatch();
@@ -321,13 +343,16 @@ class GeoTagger {
             }
 
             if (tagmap.keySet().contains(key)) {
+                //Process is_in tags
                 if (!key.equals("is_in")) {
                     continue;
                 }
                 String prev = tagmap.get(key);
+                //Continue if tag already set correctly
                 if (prev.contains(",") || prev.contains(";")) {
                     continue;
                 }
+                //If string is a correct value, append it to existant value;
                 if (tmpValue.contains(",") || tmpValue.contains(";")) {
                     tmpValue = (prev + "," + tmpValue);
                 }
@@ -335,17 +360,25 @@ class GeoTagger {
 
             //Write surrounding area as parent in "is_in" tag.
             tagmap.put(key, tmpValue);
-            batchCountRelation++;
             try {
                 for (Map.Entry<String, String> tag : tagmap.entrySet()) {
-                    this.pStmtUpdateData.setString(1, tag.getKey());
-                    this.pStmtUpdateData.setString(2, tag.getValue());
-                    this.pStmtUpdateData.setLong(3, poi.id);
+                    this.pStmtUpdateTagKey.setString(1, tag.getKey());
+                    this.pStmtUpdateTagValue.setString(1, tag.getValue());
+                    this.pStmtUpdateData.setLong(1, poi.id);
+                    this.pStmtUpdateData.setString(2, tag.getKey());
+                    this.pStmtUpdateData.setString(3, tag.getValue());
 
+                    this.pStmtUpdateTagKey.addBatch();
+                    this.pStmtUpdateTagValue.addBatch();
                     this.pStmtUpdateData.addBatch();
 
+                    batchCountRelation++;
                     if (batchCountRelation % PoiWriter.BATCH_LIMIT == 0) {
+                        pStmtUpdateTagKey.executeBatch();
+                        pStmtUpdateTagValue.executeBatch();
                         pStmtUpdateData.executeBatch();
+                        pStmtUpdateTagKey.clearBatch();
+                        pStmtUpdateTagValue.clearBatch();
                         pStmtUpdateData.clearBatch();
                         writer.conn.commit();
                     }
@@ -565,8 +598,12 @@ class GeoTagger {
     void commit() {
         try {
             pStmtInsertWayNodes.executeBatch();
+            pStmtUpdateTagKey.executeBatch();
+            pStmtUpdateTagValue.executeBatch();
             pStmtUpdateData.executeBatch();
             pStmtInsertWayNodes.clearBatch();
+            pStmtUpdateTagKey.clearBatch();
+            pStmtUpdateTagValue.clearBatch();
             pStmtUpdateData.clearBatch();
             writer.conn.commit();
         } catch (SQLException e) {

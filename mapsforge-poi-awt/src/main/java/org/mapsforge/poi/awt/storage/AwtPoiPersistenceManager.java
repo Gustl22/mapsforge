@@ -56,9 +56,13 @@ class AwtPoiPersistenceManager extends AbstractPoiPersistenceManager {
     private PreparedStatement insertPoiStatementLoc = null;
     private PreparedStatement insertPoiStatementCat = null;
     private PreparedStatement insertPoiStatementData = null;
+    private PreparedStatement insertPoiStatementTagKey = null;
+    private PreparedStatement insertPoiStatementTagValue = null;
     private PreparedStatement deletePoiStatementLoc = null;
     private PreparedStatement deletePoiStatementCat = null;
     private PreparedStatement deletePoiStatementData = null;
+    private PreparedStatement deletePoiStatementTagKey = null;
+    private PreparedStatement deletePoiStatementTagValue = null;
     private PreparedStatement isValidDBStatement = null;
     private PreparedStatement metadataStatement = null;
 
@@ -80,18 +84,22 @@ class AwtPoiPersistenceManager extends AbstractPoiPersistenceManager {
             // Finds a POI-Location by its unique ID
             this.findLocByIDStatement = this.conn.prepareStatement(DbConstants.FIND_LOCATION_BY_ID_STATEMENT);
             // Finds a POI-Data by its unique ID
-            this.findCatByIDStatement = this.conn.prepareStatement(DbConstants.FIND_DATA_BY_ID_STATEMENT);
+            this.findCatByIDStatement = this.conn.prepareStatement(DbConstants.FIND_CATEGORIES_BY_ID_STATEMENT);
             // Finds a POI-Categories by its unique ID
-            this.findDataByIDStatement = this.conn.prepareStatement(DbConstants.FIND_CATEGORIES_BY_ID_STATEMENT);
+            this.findDataByIDStatement = this.conn.prepareStatement(DbConstants.FIND_DATA_BY_ID_STATEMENT);
 
             // Inserts a POI into index and adds its data
             this.insertPoiStatementLoc = this.conn.prepareStatement(DbConstants.INSERT_INDEX_STATEMENT);
             this.insertPoiStatementData = this.conn.prepareStatement(DbConstants.INSERT_DATA_STATEMENT);
+            this.insertPoiStatementTagKey = this.conn.prepareStatement(DbConstants.INSERT_TAGKEY_STATEMENT);
+            this.insertPoiStatementTagValue = this.conn.prepareStatement(DbConstants.INSERT_TAGVALUE_STATEMENT);
             this.insertPoiStatementCat = this.conn.prepareStatement(DbConstants.INSERT_CATEGORYMAP_STATEMENT);
 
             // Deletes a POI given by its ID
             this.deletePoiStatementLoc = this.conn.prepareStatement(DbConstants.DELETE_INDEX_STATEMENT);
             this.deletePoiStatementData = this.conn.prepareStatement(DbConstants.DELETE_DATA_STATEMENT);
+            this.deletePoiStatementTagKey = this.conn.prepareStatement(DbConstants.DELETE_OVERHEADTAGKEYS_STATEMENT);
+            this.deletePoiStatementTagValue = this.conn.prepareStatement(DbConstants.DELETE_OVERHEADTAGVALUES_STATEMENT);
             this.deletePoiStatementCat = this.conn.prepareStatement(DbConstants.DELETE_CATEGORYMAP_STATEMENT);
 
             // Metadata
@@ -148,6 +156,22 @@ class AwtPoiPersistenceManager extends AbstractPoiPersistenceManager {
             }
         }
 
+        if (this.insertPoiStatementTagKey != null) {
+            try {
+                this.insertPoiStatementTagKey.close();
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
+            }
+        }
+
+        if (this.insertPoiStatementTagValue != null) {
+            try {
+                this.insertPoiStatementTagValue.close();
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
+            }
+        }
+
         if (this.insertPoiStatementCat != null) {
             try {
                 this.insertPoiStatementCat.close();
@@ -175,6 +199,22 @@ class AwtPoiPersistenceManager extends AbstractPoiPersistenceManager {
         if (this.deletePoiStatementData != null) {
             try {
                 this.deletePoiStatementData.close();
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
+            }
+        }
+
+        if (this.deletePoiStatementTagKey != null) {
+            try {
+                this.deletePoiStatementTagKey.close();
+            } catch (SQLException e) {
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
+            }
+        }
+
+        if (this.deletePoiStatementTagValue != null) {
+            try {
+                this.deletePoiStatementTagValue.close();
             } catch (SQLException e) {
                 LOGGER.log(Level.SEVERE, e.getMessage(), e);
             }
@@ -244,11 +284,15 @@ class AwtPoiPersistenceManager extends AbstractPoiPersistenceManager {
         stmt.execute(DbConstants.DROP_METADATA_STATEMENT);
         stmt.execute(DbConstants.DROP_INDEX_STATEMENT);
         stmt.execute(DbConstants.DROP_DATA_STATEMENT);
+        stmt.execute(DbConstants.DROP_TAGKEYS_STATEMENT);
+        stmt.execute(DbConstants.DROP_TAGVALUES_STATEMENT);
         stmt.execute(DbConstants.DROP_CATEGORYMAP_STATEMENT);
         stmt.execute(DbConstants.DROP_CATEGORIES_STATEMENT);
 
         stmt.execute(DbConstants.CREATE_CATEGORIES_STATEMENT);
         stmt.execute(DbConstants.CREATE_CATEGORYMAP_STATEMENT);
+        stmt.execute(DbConstants.CREATE_TAGKEYS_STATEMENT);
+        stmt.execute(DbConstants.CREATE_TAGVALUES_STATEMENT);
         stmt.execute(DbConstants.CREATE_DATA_STATEMENT);
         stmt.execute(DbConstants.CREATE_INDEX_STATEMENT);
         stmt.execute(DbConstants.CREATE_METADATA_STATEMENT);
@@ -441,6 +485,8 @@ class AwtPoiPersistenceManager extends AbstractPoiPersistenceManager {
             this.insertPoiStatementLoc.clearParameters();
             this.insertPoiStatementCat.clearParameters();
             this.insertPoiStatementData.clearParameters();
+            this.insertPoiStatementTagKey.clearParameters();
+            this.insertPoiStatementTagValue.clearParameters();
 
             Statement stmt = this.conn.createStatement();
             stmt.execute("BEGIN;");
@@ -456,6 +502,9 @@ class AwtPoiPersistenceManager extends AbstractPoiPersistenceManager {
                 Set<Tag> tags = poi.getTags();
                 for (Tag tag : tags) {
 
+
+                    this.insertPoiStatementTagKey.setString(1, tag.key);
+                    this.insertPoiStatementTagValue.setString(1, tag.value);
                     this.insertPoiStatementData.setLong(1, poi.getId());
                     this.insertPoiStatementData.setString(2, tag.key);
                     this.insertPoiStatementData.setString(3, tag.value);

@@ -114,6 +114,8 @@ public final class PoiWriter {
     // Database
     Connection conn = null;
     private PreparedStatement pStmtData = null;
+    private PreparedStatement pStmtTagKey = null;
+    private PreparedStatement pStmtTagValue = null;
     private PreparedStatement pStmtIndex = null;
     private PreparedStatement pStmtCategMap = null;
     private PreparedStatement pStmtNodesC = null;
@@ -166,6 +168,8 @@ public final class PoiWriter {
         LOGGER.info("Committing...");
         this.progressManager.setMessage("Committing...");
         this.pStmtIndex.executeBatch();
+        this.pStmtTagKey.executeBatch();
+        this.pStmtTagValue.executeBatch();
         this.pStmtData.executeBatch();
         this.pStmtCategMap.executeBatch();
         if (this.configuration.isGeoTags()) {
@@ -308,6 +312,8 @@ public final class PoiWriter {
         this.conn = DriverManager.getConnection("jdbc:sqlite:" + this.configuration.getOutputFile().getAbsolutePath());
         this.conn.createStatement().execute(DbConstants.DROP_NODES_STATEMENT);
         this.conn.createStatement().execute(DbConstants.DROP_WAYNODES_STATEMENT);
+        this.conn.createStatement().execute(DbConstants.DELETE_OVERHEADTAGKEYS_STATEMENT);
+        this.conn.createStatement().execute(DbConstants.DELETE_OVERHEADTAGVALUES_STATEMENT);
         this.conn.close();
 
         this.conn = DriverManager.getConnection("jdbc:sqlite:" + this.configuration.getOutputFile().getAbsolutePath());
@@ -331,10 +337,14 @@ public final class PoiWriter {
         stmt.execute(DbConstants.DROP_METADATA_STATEMENT);
         stmt.execute(DbConstants.DROP_INDEX_STATEMENT);
         stmt.execute(DbConstants.DROP_DATA_STATEMENT);
+        stmt.execute(DbConstants.DROP_TAGKEYS_STATEMENT);
+        stmt.execute(DbConstants.DROP_TAGVALUES_STATEMENT);
         stmt.execute(DbConstants.DROP_CATEGORYMAP_STATEMENT);
         stmt.execute(DbConstants.DROP_CATEGORIES_STATEMENT);
         stmt.execute(DbConstants.CREATE_CATEGORIES_STATEMENT);
         stmt.execute(DbConstants.CREATE_CATEGORYMAP_STATEMENT);
+        stmt.execute(DbConstants.CREATE_TAGKEYS_STATEMENT);
+        stmt.execute(DbConstants.CREATE_TAGVALUES_STATEMENT);
         stmt.execute(DbConstants.CREATE_DATA_STATEMENT);
         stmt.execute(DbConstants.CREATE_INDEX_STATEMENT);
         stmt.execute(DbConstants.CREATE_METADATA_STATEMENT);
@@ -342,6 +352,8 @@ public final class PoiWriter {
         stmt.execute(DbConstants.CREATE_WAYNODES_STATEMENT);
 
         this.pStmtData = this.conn.prepareStatement(DbConstants.INSERT_DATA_STATEMENT);
+        this.pStmtTagKey = this.conn.prepareStatement(DbConstants.INSERT_TAGKEY_STATEMENT);
+        this.pStmtTagValue = this.conn.prepareStatement(DbConstants.INSERT_TAGVALUE_STATEMENT);
         this.pStmtIndex = this.conn.prepareStatement(DbConstants.INSERT_INDEX_STATEMENT);
         this.pStmtCategMap = this.conn.prepareStatement(DbConstants.INSERT_CATEGORYMAP_STATEMENT);
 
@@ -385,6 +397,8 @@ public final class PoiWriter {
                 if (this.nNodes == 0) {
                     LOGGER.info("Processing nodes...");
                 }
+                if(nNodes % 100000 == 0)
+                    System.out.printf("Progress: Node " + nNodes + " \r");
                 ++this.nNodes;
                 if (this.configuration.isWays()) {
                     writeNode(node);
@@ -404,6 +418,8 @@ public final class PoiWriter {
                             e.printStackTrace();
                         }
                     }
+                    if(nWays % 10000 == 0)
+                        System.out.printf("Progress: Way " + nWays + " \r");
                     ++this.nWays;
                     processWay(way);
                 }
@@ -416,6 +432,8 @@ public final class PoiWriter {
                         this.geoTagger.commit();
                     }
                     this.geoTagger.filterBoundaries(relation);
+                    if(nRelations % 10000 == 0)
+                        System.out.printf("Progress: Relation " + nRelations + " \r");
                     ++this.nRelations;
                 }
                 break;
@@ -480,8 +498,10 @@ public final class PoiWriter {
         }
 
         // Store POI
-        writePOI(this.poiAdded, latitude, longitude, tagMap, poiCats);
-        ++this.poiAdded;
+        if(tagMap != null){
+            writePOI(this.poiAdded, latitude, longitude, tagMap, poiCats);
+            ++this.poiAdded;
+        }
     }
 
     /**
@@ -663,6 +683,7 @@ public final class PoiWriter {
      * Write a POI to the database.
      */
     private void writePOI(long id, double latitude, double longitude, Map<String, String> poiData, Set<PoiCategory> categories) {
+        if(poiData == null) return;
         try {
             // Index data
             this.pStmtIndex.setLong(1, id);
@@ -680,8 +701,12 @@ public final class PoiWriter {
             // If all important data should be written to DB
             if (this.configuration.isAllTags()) {
                 for (Map.Entry<String, String> tag : poiData.entrySet()) {
+                    this.pStmtTagKey.setString(1, tag.getKey());
+                    this.pStmtTagValue.setString(1, tag.getValue());
                     this.pStmtData.setString(2, tag.getKey());
                     this.pStmtData.setString(3, tag.getValue());
+                    this.pStmtTagKey.addBatch();
+                    this.pStmtTagValue.addBatch();
                     this.pStmtData.addBatch();
                 }
             } else {
@@ -704,13 +729,19 @@ public final class PoiWriter {
                 }
                 // If name tag is set
                 if (name != null) {
+                    this.pStmtTagKey.setString(1, "name");
+                    this.pStmtTagValue.setString(1, name);
                     this.pStmtData.setString(2, "name");
                     this.pStmtData.setString(3, name);
                 } else {
+                    this.pStmtTagKey.setNull(1, Types.NULL);
+                    this.pStmtTagValue.setNull(1, Types.NULL);
                     this.pStmtData.setNull(2, Types.NULL);
                     this.pStmtData.setNull(3, Types.NULL);
                 }
 
+                this.pStmtTagKey.addBatch();
+                this.pStmtTagValue.addBatch();
                 this.pStmtData.addBatch();
             }
 
@@ -723,10 +754,14 @@ public final class PoiWriter {
 
             if (this.poiAdded % BATCH_LIMIT == 0) {
                 this.pStmtIndex.executeBatch();
+                this.pStmtTagKey.executeBatch();
+                this.pStmtTagValue.executeBatch();
                 this.pStmtData.executeBatch();
                 this.pStmtCategMap.executeBatch();
 
                 this.pStmtIndex.clearBatch();
+                this.pStmtTagKey.clearBatch();
+                this.pStmtTagValue.clearBatch();
                 this.pStmtData.clearBatch();
                 this.pStmtCategMap.clearBatch();
             }

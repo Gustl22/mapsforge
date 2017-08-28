@@ -18,6 +18,7 @@ package org.mapsforge.poi.storage;
 import org.mapsforge.core.model.LatLong;
 import org.mapsforge.core.model.Tag;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -32,6 +33,11 @@ public class PointOfInterest {
     private final double longitude;
     private final Set<Tag> tags;
     private final Set<PoiCategory> categories;
+
+    public PointOfInterest(long id, double latitude, double longitude, String name, PoiCategory categories) {
+        this(id, latitude, longitude, new HashSet<>(Collections.singletonList(new Tag("name", name))),
+                new HashSet<>(Collections.singletonList(categories)));
+    }
 
     public PointOfInterest(long id, double latitude, double longitude, Set<Tag> tags, Set<PoiCategory> categories) {
         this.id = id;
@@ -53,10 +59,25 @@ public class PointOfInterest {
     }
 
     /**
-     * @return category of this point of interest.
+     * @return all categories of this point of interest.
      */
     public Set<PoiCategory> getCategories() {
         return this.categories;
+    }
+
+    /**
+     * @return category of this point of interest.
+     */
+    public PoiCategory getCategory() {
+        if(!categories.isEmpty()){
+            if(categories.size() == 1)
+                return categories.toArray(new PoiCategory[categories.size()])[0];
+            else {
+                //TODO return the highest cat.-level of all its categories together
+                return categories.toArray(new PoiCategory[categories.size()])[0];
+            }
+        }
+        return null;
     }
 
     /**

@@ -56,9 +56,13 @@ class AndroidPoiPersistenceManager extends AbstractPoiPersistenceManager {
     private Stmt insertPoiStatementLoc = null;
     private Stmt insertPoiStatementCat = null;
     private Stmt insertPoiStatementData = null;
+    private Stmt insertPoiStatementTagKey = null;
+    private Stmt insertPoiStatementTagValue = null;
     private Stmt deletePoiStatementLoc = null;
     private Stmt deletePoiStatementCat = null;
     private Stmt deletePoiStatementData = null;
+    private Stmt deletePoiStatementTagKey = null;
+    private Stmt deletePoiStatementTagValue = null;
     private Stmt isValidDBStatement = null;
     private Stmt metadataStatement = null;
 
@@ -80,19 +84,23 @@ class AndroidPoiPersistenceManager extends AbstractPoiPersistenceManager {
             // Finds a POI-Location by its unique ID
             this.findLocByIDStatement = this.db.prepare(DbConstants.FIND_LOCATION_BY_ID_STATEMENT);
             // Finds a POI-Data by its unique ID
-            this.findCatByIDStatement = this.db.prepare(DbConstants.FIND_DATA_BY_ID_STATEMENT);
+            this.findCatByIDStatement = this.db.prepare(DbConstants.FIND_CATEGORIES_BY_ID_STATEMENT);
             // Finds a POI-Categories by its unique ID
-            this.findDataByIDStatement = this.db.prepare(DbConstants.FIND_CATEGORIES_BY_ID_STATEMENT);
+            this.findDataByIDStatement = this.db.prepare(DbConstants.FIND_DATA_BY_ID_STATEMENT);
 
             // Inserts a POI into index and adds its data
             this.insertPoiStatementLoc = this.db.prepare(DbConstants.INSERT_INDEX_STATEMENT);
             this.insertPoiStatementData = this.db.prepare(DbConstants.INSERT_DATA_STATEMENT);
             this.insertPoiStatementCat = this.db.prepare(DbConstants.INSERT_CATEGORYMAP_STATEMENT);
+            this.insertPoiStatementTagKey = this.db.prepare(DbConstants.INSERT_TAGKEY_STATEMENT);
+            this.insertPoiStatementTagValue = this.db.prepare(DbConstants.INSERT_TAGVALUE_STATEMENT);
 
             // Deletes a POI given by its ID
             this.deletePoiStatementLoc = this.db.prepare(DbConstants.DELETE_INDEX_STATEMENT);
             this.deletePoiStatementData = this.db.prepare(DbConstants.DELETE_DATA_STATEMENT);
             this.deletePoiStatementCat = this.db.prepare(DbConstants.DELETE_CATEGORYMAP_STATEMENT);
+            this.deletePoiStatementTagKey = this.db.prepare(DbConstants.DELETE_OVERHEADTAGKEYS_STATEMENT);
+            this.deletePoiStatementTagValue = this.db.prepare(DbConstants.DELETE_OVERHEADTAGVALUES_STATEMENT);
 
             // Metadata
             this.metadataStatement = this.db.prepare(DbConstants.FIND_METADATA_STATEMENT);
@@ -148,6 +156,22 @@ class AndroidPoiPersistenceManager extends AbstractPoiPersistenceManager {
             }
         }
 
+        if (this.insertPoiStatementTagKey != null) {
+            try {
+                this.insertPoiStatementTagKey.close();
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
+            }
+        }
+
+        if (this.insertPoiStatementTagValue != null) {
+            try {
+                this.insertPoiStatementTagValue.close();
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
+            }
+        }
+
         if (this.insertPoiStatementCat != null) {
             try {
                 this.insertPoiStatementCat.close();
@@ -175,6 +199,22 @@ class AndroidPoiPersistenceManager extends AbstractPoiPersistenceManager {
         if (this.deletePoiStatementData != null) {
             try {
                 this.deletePoiStatementData.close();
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
+            }
+        }
+
+        if (this.deletePoiStatementTagKey != null) {
+            try {
+                this.deletePoiStatementTagKey.close();
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
+            }
+        }
+
+        if (this.deletePoiStatementTagValue != null) {
+            try {
+                this.deletePoiStatementTagValue.close();
             } catch (Exception e) {
                 LOGGER.log(Level.SEVERE, e.getMessage(), e);
             }
@@ -239,11 +279,15 @@ class AndroidPoiPersistenceManager extends AbstractPoiPersistenceManager {
         this.db.exec(DbConstants.DROP_METADATA_STATEMENT, null);
         this.db.exec(DbConstants.DROP_INDEX_STATEMENT, null);
         this.db.exec(DbConstants.DROP_DATA_STATEMENT, null);
+        this.db.exec(DbConstants.DROP_TAGKEYS_STATEMENT, null);
+        this.db.exec(DbConstants.DROP_TAGVALUES_STATEMENT, null);
         this.db.exec(DbConstants.DROP_CATEGORYMAP_STATEMENT, null);
         this.db.exec(DbConstants.DROP_CATEGORIES_STATEMENT, null);
 
         this.db.exec(DbConstants.CREATE_CATEGORIES_STATEMENT, null);
         this.db.exec(DbConstants.CREATE_CATEGORYMAP_STATEMENT, null);
+        this.db.exec(DbConstants.CREATE_TAGKEYS_STATEMENT, null);
+        this.db.exec(DbConstants.CREATE_TAGVALUES_STATEMENT, null);
         this.db.exec(DbConstants.CREATE_DATA_STATEMENT, null);
         this.db.exec(DbConstants.CREATE_INDEX_STATEMENT, null);
         this.db.exec(DbConstants.CREATE_METADATA_STATEMENT, null);
@@ -439,9 +483,13 @@ class AndroidPoiPersistenceManager extends AbstractPoiPersistenceManager {
                     this.insertPoiStatementData.reset();
                     this.insertPoiStatementData.clear_bindings();
 
+                    this.insertPoiStatementTagKey.bind(1, tag.key);
+                    this.insertPoiStatementTagValue.bind(1, tag.value);
                     this.insertPoiStatementData.bind(1, poi.getId());
                     this.insertPoiStatementData.bind(2, tag.key);
                     this.insertPoiStatementData.bind(3, tag.value);
+                    this.insertPoiStatementTagKey.step();
+                    this.insertPoiStatementTagValue.step();
                     this.insertPoiStatementData.step();
 
                 }
